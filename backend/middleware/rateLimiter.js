@@ -139,3 +139,34 @@ export const contactLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+
+// Contact Message Limiter (the Contact page form)
+export const contactMessageLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // Maximum 5 messages per hour
+
+  message: {
+    status: false,
+    message: "You sent too many messages. Please try again later.",
+  },
+
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+
+
+// Change Password Limiter (stops guessing the current password)
+export const changePasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Maximum 5 attempts
+
+  message: {
+    status: false,
+    message: "Too many password change attempts. Please try again later.",
+  },
+
+  standardHeaders: true,
+  legacyHeaders: false,
+});

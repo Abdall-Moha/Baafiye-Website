@@ -36,12 +36,7 @@ const verificationCodeSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
-
-    // Filled when the code was used successfully
-    verifiedAt: {
-      type: Date,
-      default: null,
-    },
+    
   },
   {
     // Adds createdAt and updatedAt automatically

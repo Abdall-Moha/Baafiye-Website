@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import Header from "./components/layout/Header.jsx";
 import Footer from "./components/layout/Footer.jsx";
 import Home from "./pages/Home.jsx";
@@ -6,26 +6,78 @@ import Items from "./pages/Items.jsx";
 import ItemDetails from "./pages/ItemDetails.jsx";
 import About from "./pages/About.jsx";
 import Contact from "./pages/Contact.jsx";
-import Login from "./pages/Login.jsx";
-import Register from "./pages/Register.jsx";
+import Login from "./Auth/Login.jsx";
+import Register from "./Auth/Register.jsx";
 import PostItem from "./pages/PostItem.jsx";
-export default function App() {
+import Profile from "./pages/Profile.jsx";
+
+import VerifyEmail from "./Auth/VerifyEmail.jsx";
+import ForgotPassword from "./Auth/ForgotPassword.jsx";
+import ResetPassword from "./Auth/ResetPassword.jsx";
+
+import RequireAdmin from "./Auth/RequireAdmin.jsx";
+import AdminLayout from "./pages/Admin/AdminLayout.jsx";
+import Dashboard from "./pages/Admin/Dashboard.jsx";
+import PendingApprovals from "./pages/Admin/PendingApprovals.jsx";
+
+// The public website: Header on top, Footer at the bottom
+function PublicLayout() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
       <Header />
       <main className="flex-1">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/items" element={<Items />} />
-          <Route path="/items/:id" element={<ItemDetails />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/post-item" element={<PostItem />} />
-        </Routes>
+        <Outlet />
       </main>
       <Footer />
     </div>
+  );
+}
+
+// Temporary box for the admin pages we have not built yet
+function Soon({ name }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
+      {name} page is coming next.
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      {/* Public pages (with Header and Footer) */}
+      <Route element={<PublicLayout />}>
+        <Route path="/" element={<Home />} />
+        <Route path="/items" element={<Items />} />
+        <Route path="/items/:id" element={<ItemDetails />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/post-item" element={<PostItem />} />
+        <Route path="/profile" element={<Profile />} />
+      </Route>
+
+      {/* Admin pages (own layout, only for admins) */}
+      <Route
+        path="/admin"
+        element={
+          <RequireAdmin>
+            <AdminLayout />
+          </RequireAdmin>
+        }
+      >
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<Dashboard />} />
+        <Route path="pending" element={<PendingApprovals />} />
+        <Route path="items" element={<Soon name="All items" />} />
+        <Route path="users" element={<Soon name="Users" />} />
+        <Route path="categories" element={<Soon name="Categories" />} />
+        <Route path="messages" element={<Soon name="Messages" />} />
+      </Route>
+    </Routes>
   );
 }

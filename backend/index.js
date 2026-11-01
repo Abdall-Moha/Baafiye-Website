@@ -13,12 +13,14 @@ import userRouter from './routes/UserRoute.js'
 import categoryRouter from "./routes/CategoryRoute.js";
 import foundItemRouter from "./routes/FoundItemRoute.js";
 import adminRouter from "./routes/AdminRoute.js";
+import contactRouter from "./routes/ContactRoute.js";
 // Job that expires old items
 import { expireFoundItems } from "./job/expireFoundItems.js";
 // Limit for all /api routes
 import { generalLimiter } from "./middleware/rateLimiter.js";
 // Folder where the uploaded pictures are saved
 import { uploadsDir } from "./middleware/imageUploadMiddleware.js";
+
 
 const app = express()
 
@@ -30,8 +32,8 @@ if (env.NODE_ENV === "production") {
 
 // Middleware
 
-// Security headers
-app.use(helmet())
+// Let the frontend display the pictures from /uploads
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 
 // Only your frontend website may call this API from a browser
 app.use(cors({ origin: env.FRONTEND_URL }))
@@ -50,6 +52,9 @@ app.use(
     maxAge: "7d",
   })
 )
+
+// Serve the uploaded files (the folder must match your upload middleware)
+app.use("/uploads", express.static("uploads"));
 
 // Read JSON from the request (maximum 10kb, so nobody sends huge data)
 // (pictures are NOT affected, multer reads them in the route)
@@ -108,7 +113,7 @@ app.use('/api/auth', userRouter)
 app.use("/api/categories", categoryRouter);
 app.use("/api/items", foundItemRouter);
 app.use("/api/admin", adminRouter);
-
+app.use("/api/contact", contactRouter);
 // Wrong URL (no route matched)
 app.use((req, res) => {
   return res.status(404).json({

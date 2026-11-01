@@ -19,7 +19,8 @@ import { HashResetToken } from "../utils/GenerateResetToken.js";
 import VerificationCode from "../model/VerificationCode.js";
 import PasswordResetToken from "../model/PasswordResetToken.js";
 // Limiters (stop too many requests)
-import { loginLimiter, forgotPasswordLimiter, verifyEmailLimiter, resetPasswordLimiter, registerLimiter, resendVerificationLimiter } from "../middleware/rateLimiter.js";
+import { loginLimiter, forgotPasswordLimiter, verifyEmailLimiter, resetPasswordLimiter, registerLimiter, resendVerificationLimiter, changePasswordLimiter,  } from "../middleware/rateLimiter.js";
+import authMiddleware from "../middleware/authMiddleware.js";
 
 
 const userRouter = express.Router();
@@ -268,7 +269,6 @@ userRouter.post("/verify", verifyEmailLimiter, async (req, res) => {
       {
         userId: user._id,
         type: "email",
-        verifiedAt: null,
       },
       {
         $inc: { attempts: 1 },
@@ -336,10 +336,10 @@ userRouter.post("/verify", verifyEmailLimiter, async (req, res) => {
 
     await user.save();
 
-    // Mark the code as used
-    verification.verifiedAt = new Date();
-
-    await verification.save();
+    // Delete the code (we do not need it any more)
+    await VerificationCode.deleteMany({
+      userId: user._id,
+    });
 
     return res.status(200).json({
       status: true,
@@ -890,7 +890,6 @@ userRouter.post(
       const lastCode = await VerificationCode.findOne({
         userId: user._id,
         type: "email",
-        verifiedAt: null,
       }).sort({ createdAt: -1 });
 
       if (lastCode) {
@@ -918,7 +917,6 @@ userRouter.post(
       await VerificationCode.deleteMany({
         userId: user._id,
         type: "email",
-        verifiedAt: null,
       });
 
 
@@ -965,7 +963,6 @@ userRouter.post(
         await VerificationCode.deleteMany({
           userId: user._id,
           type: "email",
-          verifiedAt: null,
         });
 
         return res.status(500).json({
@@ -996,6 +993,212 @@ userRouter.post(
         status: false,
         message:
           "Failed to resend verification code",
+      });
+    }
+  }
+);
+
+
+// ======================================================
+// UPDATE MY PROFILE
+// PUT /api/auth/profile
+// PROTECTED
+//
+// The user can change his name and phone.
+// The email cannot be changed here (it is the login).
+// ======================================================
+
+userRouter.put("/profile", authMiddleware, async (req, res) => {
+  try {
+
+    // Read the data sent by the frontend
+    const { name, phone } = req.body;
+
+    // Check that both values were sent
+    if (!name || !phone) {
+      return res.status(400).json({
+        status: false,
+        message: "Name and phone are required",
+      });
+    }
+
+    // Both values must be text
+    if (typeof name !== "string" || typeof phone !== "string") {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid input",
+      });
+    }
+
+    // Clean the text
+    const cleanName = name.trim();
+    const cleanPhone = phone.trim();
+
+    // Validate name
+    if (cleanName.length < 3 || cleanName.length > 60) {
+      return res.status(400).json({
+        status: false,
+        message: "Name must be between 3 and 60 characters",
+      });
+    }
+
+    // Validate phone
+    if (!phonePattern.test(cleanPhone)) {
+      return res.status(400).json({
+        status: false,
+        message: "Please enter a valid phone number",
+      });
+    }
+
+    // Find the user (the id comes from the login token)
+    const user = await User.findById(req.user.userId);
+
+    if (!user) {
+      return res.status(404).json({
+        status: false,
+        message: "User not found",
+      });
+    }
+
+    // Save the new data
+    user.name = cleanName;
+    user.phone = cleanPhone;
+
+    await user.save();
+
+    return res.status(200).json({
+      status: true,
+      message: "Profile updated successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+      },
+    });
+
+  } catch (error) {
+    console.log("Update profile error:", error);
+
+    return res.status(500).json({
+      status: false,
+      message: "Failed to update profile",
+    });
+  }
+});
+
+
+// ======================================================
+// CHANGE MY PASSWORD
+// PUT /api/auth/change-password
+// PROTECTED (limited by changePasswordLimiter)
+//
+// The user must send his CURRENT password.
+// After the change all old login tokens stop working,
+// so we send back a NEW token to keep this user logged in.
+// ======================================================
+
+userRouter.put(
+  "/change-password",
+  changePasswordLimiter,
+  authMiddleware,
+  async (req, res) => {
+    try {
+
+      // Read the data sent by the frontend
+      const { currentPassword, newPassword } = req.body;
+
+      // Check that both passwords were sent
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({
+          status: false,
+          message: "Current password and new password are required",
+        });
+      }
+
+      // Both values must be text
+      if (
+        typeof currentPassword !== "string" ||
+        typeof newPassword !== "string"
+      ) {
+        return res.status(400).json({
+          status: false,
+          message: "Invalid input",
+        });
+      }
+
+      // Validate the new password
+      if (newPassword.length < 6 || newPassword.length > 64) {
+        return res.status(400).json({
+          status: false,
+          message: "New password must be between 6 and 64 characters",
+        });
+      }
+
+      // The new password must be different
+      if (currentPassword === newPassword) {
+        return res.status(400).json({
+          status: false,
+          message: "New password must be different from the current one",
+        });
+      }
+
+      // Find the user (the id comes from the login token)
+      const user = await User.findById(req.user.userId);
+
+      if (!user) {
+        return res.status(404).json({
+          status: false,
+          message: "User not found",
+        });
+      }
+
+      // Check the current password
+      const passwordIsCorrect = await bcrypt.compare(
+        currentPassword,
+        user.password
+      );
+
+      if (!passwordIsCorrect) {
+        return res.status(400).json({
+          status: false,
+          message: "Current password is wrong",
+        });
+      }
+
+      // Save the new password (hashed)
+      user.password = await bcrypt.hash(newPassword, 10);
+
+      // Old login tokens stop working (see authMiddleware)
+      user.passwordChangedAt = new Date();
+
+      await user.save();
+
+      // Make a NEW token so this user stays logged in
+      const token = jwt.sign(
+        {
+          userId: user._id,
+          role: user.role,
+        },
+        process.env.JWT_SECRET,
+        {
+          expiresIn: "7d",
+        }
+      );
+
+      return res.status(200).json({
+        status: true,
+        message: "Password changed successfully",
+        token,
+      });
+
+    } catch (error) {
+      console.log("Change password error:", error);
+
+      return res.status(500).json({
+        status: false,
+        message: "Failed to change password",
       });
     }
   }

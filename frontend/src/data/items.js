@@ -1,9 +1,24 @@
-export const districts = ["Abdiaziz", "Bondhere", "Daynile", "Dharkenley", "Hamar Jajab", "Hamar Weyne", "Hodan", "Howlwadaag", "Kahda", "Karaan", "Shangani", "Shibis", "Waberi", "Wadajir", "Warta Nabada", "Yaqshid", "Garasbaaley", "Daarusalaam", "Gubadley", "Huriwaa"];
-export const categories = ["Phone", "Wallet", "Keys", "Documents", "Bag", "Other"];
-export const items = [
-    { id: "blue-phone", title: "Blue mobile phone", category: "Phone", district: "Hodan", village: "Taleex", date: "12 August 2026", description: "A blue phone with a clear case was found near the main market. Please describe the lock screen to confirm ownership.", image: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=80" },
-    { id: "brown-wallet", title: "Brown leather wallet", category: "Wallet", district: "Wadajir", village: "Madinah", date: "10 August 2026", description: "A brown leather wallet was safely handed in after being found outside a local shop.", image: "https://images.unsplash.com/photo-1627123424574-724758594e93?auto=format&fit=crop&w=900&q=80" },
-    { id: "house-keys", title: "Set of house keys", category: "Keys", district: "Howlwadaag", village: "Banaadir", date: "8 August 2026", description: "Three keys on a small silver ring, found close to a bus stop.", image: "https://images.unsplash.com/photo-1582139329536-e7284fece509?auto=format&fit=crop&w=900&q=80" },
-    { id: "black-backpack", title: "Black school backpack", category: "Bag", district: "Yaqshid", village: "Suuqa Xoolaha", date: "6 August 2026", description: "A black backpack was found in a public transport area. Contents are being kept private.", image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=900&q=80" },
-    { id: "id-card", title: "Personal ID card", category: "Documents", district: "Hamar Weyne", village: "Shangani", date: "4 August 2026", description: "An identification card was found near the waterfront and is ready to be returned to its owner.", image: "https://images.unsplash.com/photo-1586075010923-2dd4570fb338?auto=format&fit=crop&w=900&q=80" },
-    { id: "reading-glasses", title: "Reading glasses", category: "Other", district: "Waberi", village: "Airport Road", date: "2 August 2026", description: "Black framed reading glasses in a protective case.", image: "https://images.unsplash.com/photo-1511499767150-a48a237f0083?auto=format&fit=crop&w=900&q=80" }];
+export const districts = [
+  "Abdiaziz",
+  "Bondhere",
+  "Daynile",
+  "Dharkenley",
+  "Hamar Jajab",
+  "Hamar Weyne",
+  "Hodan",
+  "Howlwadaag",
+  "Kahda",
+  "Karaan",
+  "Shangani",
+  "Shibis",
+  "Waberi",
+  "Wadajir",
+  "Warta Nabada",
+  "Yaqshid",
+  "Garasbaaley",
+  "Daarusalaam",
+  "Gubadley",
+  "Huriwaa",
+];
+
+

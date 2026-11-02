@@ -11,6 +11,9 @@ import {
   HiTag,
   HiArrowRight,
   HiRefresh,
+  HiMail,
+  HiLocationMarker,
+  HiStar,
 } from "react-icons/hi";
 import { useAuth } from "../../Auth/AuthContext.jsx";
 
@@ -44,7 +47,7 @@ export default function Dashboard() {
     return (
       <div className="animate-pulse space-y-6">
         <div className="h-24 rounded-2xl bg-slate-200/70" />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
           {[1, 2, 3, 4].map((n) => (
             <div key={n} className="h-28 rounded-2xl bg-slate-200/70" />
           ))}
@@ -71,7 +74,12 @@ export default function Dashboard() {
     { label: "Users", value: stats.totalUsers, icon: HiUsers, tone: "indigo", to: "/admin/users" },
     { label: "Blocked users", value: stats.blockedUsers, icon: HiUserRemove, tone: "red", to: "/admin/users" },
     { label: "Categories", value: stats.totalCategories, icon: HiTag, tone: "indigo", to: "/admin/categories" },
+    { label: "New messages", value: stats.unreadMessages || 0, icon: HiMail, tone: "amber", to: "/admin/messages" },
   ];
+
+  // Report data (the backend sends the top 5, biggest first)
+  const topCategories = stats.topCategories || [];
+  const topDistricts = stats.topDistricts || [];
 
   return (
     <div className="space-y-6">
@@ -126,9 +134,14 @@ export default function Dashboard() {
         <h3 className="mb-3 text-sm font-bold uppercase tracking-[.14em] text-slate-500">
           Items
         </h3>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-5">
           {itemCards.map((card, index) => (
-            <StatCard key={card.label} card={card} delay={index * 40} />
+            <StatCard
+              key={card.label}
+              card={card}
+              delay={index * 40}
+              className={index === itemCards.length - 1 ? "col-span-2 sm:col-span-1" : ""}
+            />
           ))}
         </div>
 
@@ -165,12 +178,43 @@ export default function Dashboard() {
         )}
       </section>
 
+      {/* Reports: what is found the most, and where */}
+      <section>
+        <h3 className="mb-3 text-sm font-bold uppercase tracking-[.14em] text-slate-500">
+          Reports
+        </h3>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <RankCard
+            title="Most found category"
+            icon={HiStar}
+            tone="indigo"
+            rows={topCategories}
+            total={stats.approvedItems || 0}
+            empty="No approved items yet."
+            delay={0}
+          />
+          <RankCard
+            title="District with most found items"
+            icon={HiLocationMarker}
+            tone="emerald"
+            rows={topDistricts}
+            total={stats.approvedItems || 0}
+            empty="No approved items yet."
+            delay={60}
+          />
+        </div>
+        <p className="mt-2 text-xs text-slate-500">
+          Counts only approved items (public, returned and expired). Waiting and
+          cancelled posts are not counted.
+        </p>
+      </section>
+
       {/* People and categories */}
       <section>
         <h3 className="mb-3 text-sm font-bold uppercase tracking-[.14em] text-slate-500">
           People and categories
         </h3>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           {otherCards.map((card, index) => (
             <StatCard key={card.label} card={card} delay={index * 40} />
           ))}
@@ -180,28 +224,84 @@ export default function Dashboard() {
   );
 }
 
-// One number card (it is a link to the page that manages it)
-function StatCard({ card, delay }) {
+// One number card (it is a link to the page that manages it).
+// Small screens: icon on top, number below (so 2 fit in a row).
+function StatCard({ card, delay, className = "" }) {
   const Icon = card.icon;
   const tone = tones[card.tone];
 
   return (
     <Link
       to={card.to}
-      className="group fade-up flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md sm:p-5"
+      className={`group fade-up flex flex-col items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md sm:flex-row sm:items-center sm:gap-4 sm:p-5 ${className}`}
       style={{ animationDelay: `${delay}ms` }}
     >
       <span
-        className={`grid size-11 shrink-0 place-items-center rounded-xl transition-transform duration-200 group-hover:scale-110 ${tone.box}`}
+        className={`grid size-10 shrink-0 place-items-center rounded-xl transition-transform duration-200 group-hover:scale-110 sm:size-11 ${tone.box}`}
       >
         <Icon className="size-5" />
       </span>
-      <div className="min-w-0">
+      <div className="min-w-0 max-w-full">
         <p className="text-2xl font-extrabold leading-none text-slate-950">
           {card.value}
         </p>
         <p className="mt-1.5 truncate text-sm text-slate-500">{card.label}</p>
       </div>
     </Link>
+  );
+}
+
+
+// A report card: the winner in big letters + the top 5 with bars
+function RankCard({ title, icon: Icon, tone, rows, total, empty, delay }) {
+  const colors = tones[tone];
+  const winner = rows[0];
+  const biggest = winner ? winner.count : 1;
+
+  return (
+    <div
+      className="fade-up rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <div className="flex items-center gap-3">
+        <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${colors.box}`}>
+          <Icon className="size-5" />
+        </span>
+        <p className="text-sm font-bold text-slate-500">{title}</p>
+      </div>
+
+      {!winner && <p className="mt-4 text-sm text-slate-500">{empty}</p>}
+
+      {winner && (
+        <>
+          <p className="display-font mt-3 truncate text-2xl text-slate-950 sm:text-3xl">
+            {winner.name}
+          </p>
+          <p className="text-sm text-slate-500">
+            {winner.count} {winner.count === 1 ? "item" : "items"}
+            {total > 0 && ` (${Math.round((winner.count / total) * 100)}% of all)`}
+          </p>
+
+          <ul className="mt-4 space-y-3">
+            {rows.map((row, index) => (
+              <li key={row.name}>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="truncate font-semibold text-slate-700">
+                    {index + 1}. {row.name}
+                  </span>
+                  <span className="shrink-0 font-bold text-slate-900">{row.count}</span>
+                </div>
+                <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className={`h-full rounded-full ${colors.bar} transition-all duration-700`}
+                    style={{ width: `${(row.count / biggest) * 100}%` }}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
   );
 }

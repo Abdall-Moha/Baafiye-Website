@@ -7,6 +7,7 @@ import mongoose from "mongoose";
 import User from "../model/UserModel.js";
 import FoundItem from "../model/FoundItem.js";
 import Category from "../model/Category.js";
+import ContactMessage from "../model/ContactMessage.js";
 // Login check
 import authMiddleware from "../middleware/authMiddleware.js";
 
@@ -51,13 +52,18 @@ adminRouter.use(authMiddleware, adminOnly);
 
 
 // ======================================================
-// DASHBOARD NUMBERS
+// GET DASHBOARD NUMBERS
 // GET /api/admin/stats
 // ADMIN ONLY
 // ======================================================
 
 adminRouter.get("/stats", async (req, res) => {
   try {
+
+    // Reports ("most found category / district") count only items that
+    // were really approved. Pending (not checked yet) and cancelled
+    // (rejected or removed) items are not counted.
+    const countedStatuses = ["active", "returned", "expired"];
 
     // Count everything at the same time
     const [
@@ -69,6 +75,9 @@ adminRouter.get("/stats", async (req, res) => {
       returnedItems,
       expiredItems,
       cancelledItems,
+      unreadMessages,
+      categoryTotals,
+      districtTotals,
     ] = await Promise.all([
       User.countDocuments(),
       User.countDocuments({ isActive: false }),
@@ -78,7 +87,50 @@ adminRouter.get("/stats", async (req, res) => {
       FoundItem.countDocuments({ status: "returned" }),
       FoundItem.countDocuments({ status: "expired" }),
       FoundItem.countDocuments({ status: "cancelled" }),
+      ContactMessage.countDocuments({ status: "new" }),
+
+      // The 5 categories with the most items
+      FoundItem.aggregate([
+        { $match: { status: { $in: countedStatuses } } },
+        { $group: { _id: "$category", count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: 5 },
+      ]),
+
+      // The 5 districts with the most items
+      FoundItem.aggregate([
+        { $match: { status: { $in: countedStatuses } } },
+        { $group: { _id: "$district", count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+        { $limit: 5 },
+      ]),
     ]);
+
+
+    // The aggregate gives category ids, so we get the names
+    const categoryDocs = await Category.find({
+      _id: { $in: categoryTotals.map((row) => row._id) },
+    }).select("name");
+
+    const topCategories = categoryTotals.map((row) => {
+      const found = categoryDocs.find(
+        (category) => category._id.toString() === row._id.toString()
+      );
+
+      return {
+        name: found ? found.name : "Unknown",
+        count: row.count,
+      };
+    });
+
+    // Districts are already text
+    const topDistricts = districtTotals.map((row) => {
+      return {
+        name: row._id,
+        count: row.count,
+      };
+    });
+
 
     return res.status(200).json({
       status: true,
@@ -86,6 +138,10 @@ adminRouter.get("/stats", async (req, res) => {
         totalUsers,
         blockedUsers,
         totalCategories,
+        unreadMessages,
+        approvedItems: activeItems + returnedItems + expiredItems,
+        topCategories,
+        topDistricts,
         items: {
           pending: pendingItems,
           active: activeItems,
@@ -780,5 +836,233 @@ adminRouter.patch("/users/:id/role", async (req, res) => {
   }
 });
 
+
+// ======================================================
+// GET CONTACT MESSAGES
+// GET /api/admin/messages
+// ADMIN ONLY
+//
+// Supports: status (new | read), search (name, email, subject),
+// page, limit. Newest first.
+// ======================================================
+
+adminRouter.get("/messages", async (req, res) => {
+  try {
+
+    // Read the values from the URL
+    const {
+      status,
+      search,
+      page = 1,
+      limit = 10,
+    } = req.query;
+
+
+    // URL values must be plain text
+    if (
+      (status && typeof status !== "string") ||
+      (search && typeof search !== "string")
+    ) {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid search values",
+      });
+    }
+
+
+    // Pagination
+    const currentPage = Math.max(Number(page) || 1, 1);
+
+    const messagesPerPage = Math.min(
+      Math.max(Number(limit) || 10, 1),
+      50
+    );
+
+    const skip = (currentPage - 1) * messagesPerPage;
+
+
+    // Filter (empty = show everything)
+    const filter = {};
+
+    if (status) {
+
+      if (status !== "new" && status !== "read") {
+        return res.status(400).json({
+          status: false,
+          message: "Invalid status",
+        });
+      }
+
+      filter.status = status;
+    }
+
+    // Search in name, email or subject
+    if (search) {
+      const pattern = {
+        $regex: escapeRegex(search.trim()),
+        $options: "i",
+      };
+
+      filter.$or = [
+        { name: pattern },
+        { email: pattern },
+        { subject: pattern },
+      ];
+    }
+
+
+    // Get messages + total count
+    const [
+      messages,
+      totalMessages,
+    ] = await Promise.all([
+
+      ContactMessage.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(messagesPerPage),
+
+      ContactMessage.countDocuments(filter),
+    ]);
+
+
+    const totalPages = Math.ceil(totalMessages / messagesPerPage);
+
+    return res.status(200).json({
+      status: true,
+
+      messages,
+
+      pagination: {
+        currentPage,
+        itemsPerPage: messagesPerPage,
+        totalItems: totalMessages,
+        totalPages,
+        hasNextPage: currentPage < totalPages,
+        hasPreviousPage: currentPage > 1,
+      },
+    });
+
+  } catch (error) {
+    console.log("Admin get messages error:", error);
+
+    return res.status(500).json({
+      status: false,
+      message: "Failed to get messages",
+    });
+  }
+});
+
+
+// ======================================================
+// MARK A MESSAGE AS READ (or unread again)
+// PATCH /api/admin/messages/:id/status
+// ADMIN ONLY
+//
+// Body: { "status": "read" } or { "status": "new" }
+// ======================================================
+
+adminRouter.patch("/messages/:id/status", async (req, res) => {
+  try {
+
+    // Read the data sent by the frontend
+    const { status } = req.body;
+
+
+    // Check the id
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid message ID",
+      });
+    }
+
+
+    // Check the new status
+    if (status !== "read" && status !== "new") {
+      return res.status(400).json({
+        status: false,
+        message: "Status must be read or new",
+      });
+    }
+
+
+    // Find and update the message
+    const message = await ContactMessage.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+
+    if (!message) {
+      return res.status(404).json({
+        status: false,
+        message: "Message not found",
+      });
+    }
+
+
+    return res.status(200).json({
+      status: true,
+      message: "Message updated",
+      contactMessage: message,
+    });
+
+  } catch (error) {
+    console.log("Admin update message error:", error);
+
+    return res.status(500).json({
+      status: false,
+      message: "Failed to update message",
+    });
+  }
+});
+
+
+// ======================================================
+// DELETE A MESSAGE
+// DELETE /api/admin/messages/:id
+// ADMIN ONLY
+// ======================================================
+
+adminRouter.delete("/messages/:id", async (req, res) => {
+  try {
+
+    // Check the id
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid message ID",
+      });
+    }
+
+
+    // Delete the message
+    const message = await ContactMessage.findByIdAndDelete(
+      req.params.id
+    );
+
+    if (!message) {
+      return res.status(404).json({
+        status: false,
+        message: "Message not found",
+      });
+    }
+
+
+    return res.status(200).json({
+      status: true,
+      message: "Message deleted",
+    });
+
+  } catch (error) {
+    console.log("Admin delete message error:", error);
+
+      return res.status(500).json({
+      status: false,
+      message: "Failed to delete message",
+    });
+  }
+});
 
 export default adminRouter;

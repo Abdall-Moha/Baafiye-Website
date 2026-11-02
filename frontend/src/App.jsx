@@ -19,6 +19,10 @@ import RequireAdmin from "./Auth/RequireAdmin.jsx";
 import AdminLayout from "./pages/Admin/AdminLayout.jsx";
 import Dashboard from "./pages/Admin/Dashboard.jsx";
 import PendingApprovals from "./pages/Admin/PendingApprovals.jsx";
+import AllItems from "./pages/Admin/AllItems.jsx";
+import Users from "./pages/Admin/Users.jsx";
+import Categories from "./pages/Admin/Categories.jsx";
+import Messages from "./pages/Admin/Messages.jsx";
 
 // The public website: Header on top, Footer at the bottom
 function PublicLayout() {
@@ -33,14 +37,7 @@ function PublicLayout() {
   );
 }
 
-// Temporary box for the admin pages we have not built yet
-function Soon({ name }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
-      {name} page is coming next.
-    </div>
-  );
-}
+
 
 export default function App() {
   return (
@@ -73,10 +70,10 @@ export default function App() {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="pending" element={<PendingApprovals />} />
-        <Route path="items" element={<Soon name="All items" />} />
-        <Route path="users" element={<Soon name="Users" />} />
-        <Route path="categories" element={<Soon name="Categories" />} />
-        <Route path="messages" element={<Soon name="Messages" />} />
+        <Route path="items" element={<AllItems />} />
+        <Route path="users" element={<Users />} />
+        <Route path="categories" element={<Categories />} />
+        <Route path="messages" element={<Messages />} />
       </Route>
     </Routes>
   );
